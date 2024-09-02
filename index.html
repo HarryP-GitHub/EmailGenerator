@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Template Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        input, textarea, button, select {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        h1 {
+            text-align: center;
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        .template-buttons {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .template-button {
+            margin: 5px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            text-align: center;
+        }
+        .template-button button {
+            background-color: #28a745;
+            margin: 5px;
+        }
+        .template-button button.delete {
+            background-color: #dc3545;
+        }
+        .template-button button.edit {
+            background-color: #007bff;
+        }
+        .template-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .template-header h2 {
+            margin: 0;
+        }
+        .template-header button {
+            background-color: #007bff;
+        }
+        .template-header button:hover {
+            background-color: #0056b3;
+        }
+        .copy-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #007bff;
+            font-size: 14px;
+            margin-left: 5px;
+        }
+        .copy-button:hover {
+            text-decoration: underline;
+        }
+        .copy-button::before {
+            content: '📋';
+            margin-right: 5px;
+        }
+        textarea {
+            box-sizing: border-box; /* Ensure padding is included in the total width */
+            overflow: hidden; /* Hide scrollbar */
+            resize: none; /* Prevent manual resize */
+        }
+        .auto-resize {
+            height: auto;
+            min-height: 100px; /* Minimum height */
+            max-height: 300px; /* Maximum height */
+            overflow-y: auto; /* Allow scrolling if needed */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Section for Creating New Template -->
+        <div id="createSection" class="section active">
+            <h1>Create New Template</h1>
+            <label for="emailSubject">Email Subject Line Template:</label>
+            <textarea id="emailSubject" class="auto-resize" placeholder="Enter your email subject line template here..."></textarea>
+
+            <label for="emailBody">Email Body Template:</label>
+            <textarea id="emailBody" class="auto-resize" placeholder="Enter your email body template here..."></textarea>
+
+            <input type="text" id="templateName" placeholder="Enter template name">
+            <button onclick="saveTemplate()">Save Template</button>
+            <button onclick="showSelectSection()">View Templates</button>
+        </div>
+
+        <!-- Section for Selecting and Using Template -->
+        <div id="selectSection" class="section">
+            <h1>Select Template</h1>
+            <div id="templateButtons" class="template-buttons"></div>
+            <button onclick="showCreateSection()">Create New Template</button>
+        </div>
+
+        <!-- Section for Using Selected Template -->
+        <div id="useTemplateSection" class="section">
+            <div class="template-header">
+                <h2 id="templateTitle">Using Template</h2>
+                <button onclick="showSelectSection()">Use a Different Template</button>
+            </div>
+            <div id="placeholders"></div>
+            <button onclick="generateEmail()">Generate Email</button>
+
+            <h3>Generated Email:</h3>
+            <label for="resultSubject">Subject:</label>
+            <textarea id="resultSubject" class="auto-resize" readonly></textarea>
+            <button class="copy-button" onclick="copyToClipboard('resultSubject')">Copy Subject</button>
+
+            <label for="resultBody">Body:</label>
+            <textarea id="resultBody" class="auto-resize" readonly></textarea>
+            <button class="copy-button" onclick="copyToClipboard('resultBody')">Copy Body</button>
+        </div>
+
+        <!-- Saved Templates -->
+        <div class="section" id="savedTemplatesSection">
+            <h2>Saved Templates</h2>
+            <div class="template-list" id="templateList"></div>
+        </div>
+    </div>
+
+    <script>
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special characters
+        }
+
+        function getPlaceholders(template) {
+            const matches = template.match(/\*[^*]+\*/g) || [];
+            return [...new Set(matches)];
+        }
+
+        function updatePlaceholders() {
+            const emailBodyTemplate = document.getElementById('emailBody').value;
+            const emailSubjectTemplate = document.getElementById('emailSubject').value;
+
+            const bodyPlaceholders = getPlaceholders(emailBodyTemplate);
+            const subjectPlaceholders = getPlaceholders(emailSubjectTemplate);
+
+            const allPlaceholders = [...new Set([...bodyPlaceholders, ...subjectPlaceholders])];
+
+            const placeholdersContainer = document.getElementById('placeholders');
+            placeholdersContainer.innerHTML = '';
+
+            if (allPlaceholders.length > 0) {
+                allPlaceholders.forEach(ph => {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = ph;
+                    input.placeholder = `Enter value for ${ph}`;
+                    placeholdersContainer.appendChild(input);
+                });
+            }
+        }
+
+        function generateEmail() {
+            const emailBodyTemplate = document.getElementById('emailBody').value;
+            const emailSubjectTemplate = document.getElementById('emailSubject').value;
+            const placeholders = getPlaceholders(emailBodyTemplate).concat(getPlaceholders(emailSubjectTemplate));
+
+            let resultBody = emailBodyTemplate;
+            let resultSubject = emailSubjectTemplate;
+
+            placeholders.forEach(ph => {
+                const value = document.getElementById(ph).value;
+                const escapedPh = escapeRegExp(ph);
+                resultBody = resultBody.replace(new RegExp(escapedPh, 'g'), value);
+                resultSubject = resultSubject.replace(new RegExp(escapedPh, 'g'), value);
+            });
+
+            // Place results in the correct text areas
+            document.getElementById('resultSubject').value = resultSubject;
+            document.getElementById('resultBody').value = resultBody;
+            
+            // Auto-resize textareas
+            resizeTextareas();
+        }
+
+        function resizeTextareas() {
+            document.querySelectorAll('textarea.auto-resize').forEach(textarea => {
+                textarea.style.height = 'auto'; // Reset height to auto to recalculate
+                textarea.style.height = textarea.scrollHeight + 'px'; // Set height to scrollHeight
+            });
+        }
+
+        function copyToClipboard(id) {
+            const textarea = document.getElementById(id);
+            textarea.select();
+            document.execCommand('copy');
+            alert('Copied to clipboard!');
+        }
+
+        function saveTemplate() {
+            const name = document.getElementById('templateName').value;
+            const emailBody = document.getElementById('emailBody').value;
+            const emailSubject = document.getElementById('emailSubject').value;
+
+            if (!name || (!emailBody && !emailSubject)) {
+                alert('Please enter a template name and both email body and subject.');
+                return;
+            }
+
+            const templates = JSON.parse(localStorage.getItem('templates') || '{}');
+            templates[name] = { emailBody, emailSubject };
+            localStorage.setItem('templates', JSON.stringify(templates));
+            loadTemplates();
+            showSelectSection();
+            document.title = 'Email Template Generator';
+        }
+
+        function deleteTemplate(name) {
+            const templates = JSON.parse(localStorage.getItem('templates') || '{}');
+            delete templates[name];
+            localStorage.setItem('templates', JSON.stringify(templates));
+            loadTemplates();
+            showSelectSection();
+        }
+
+        function editTemplate(name) {
+            const templates = JSON.parse(localStorage.getItem('templates') || '{}');
+            const { emailBody, emailSubject } = templates[name];
+            document.getElementById('emailBody').value = emailBody;
+            document.getElementById('emailSubject').value = emailSubject;
+            updatePlaceholders();
+            document.getElementById('templateName').value = name;
+            showCreateSection();
+            document.title = 'Edit Template';
+
+            // Clear previous generated email content
+            document.getElementById('resultSubject').value = '';
+            document.getElementById('resultBody').value = '';
+        }
+
+        function loadTemplateForUse(name) {
+            const templates = JSON.parse(localStorage.getItem('templates') || '{}');
+            const { emailBody, emailSubject } = templates[name];
+            document.getElementById('emailBody').value = emailBody;
+            document.getElementById('emailSubject').value = emailSubject;
+            updatePlaceholders();
+            showUseTemplateSection(name);
+            document.title = `Using Template: ${name}`;
+
+            // Clear previous generated email content
+            document.getElementById('resultSubject').value = '';
+            document.getElementById('resultBody').value = '';
+        }
+
+        function showCreateSection() {
+            document.getElementById('createSection').classList.add('active');
+            document.getElementById('selectSection').classList.remove('active');
+            document.getElementById('useTemplateSection').classList.remove('active');
+            document.getElementById('savedTemplatesSection').classList.remove('active');
+            document.title = 'Create New Template';
+        }
+
+        function showSelectSection() {
+            document.getElementById('createSection').classList.remove('active');
+            document.getElementById('selectSection').classList.add('active');
+            document.getElementById('useTemplateSection').classList.remove('active');
+            document.getElementById('savedTemplatesSection').classList.remove('active');
+            updateTemplateButtons();
+            document.title = 'Select Template';
+        }
+
+        function showUseTemplateSection(name) {
+            document.getElementById('createSection').classList.remove('active');
+            document.getElementById('selectSection').classList.remove('active');
+            document.getElementById('useTemplateSection').classList.add('active');
+            document.getElementById('savedTemplatesSection').classList.remove('active');
+            document.getElementById('templateTitle').textContent = name;
+        }
+
+        function updateTemplateButtons() {
+            const templateList = document.getElementById('templateButtons');
+            const templates = JSON.parse(localStorage.getItem('templates') || '{}');
+
+            templateList.innerHTML = '';
+
+            for (const [name, { emailBody, emailSubject }] of Object.entries(templates)) {
+                const buttonContainer = document.createElement('div');
+                buttonContainer.classList.add('template-button');
+                
+                const button = document.createElement('button');
+                button.textContent = name;
+                button.onclick = () => loadTemplateForUse(name);
+                buttonContainer.appendChild(button);
+
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Edit';
+                editButton.classList.add('edit');
+                editButton.onclick = () => editTemplate(name);
+                buttonContainer.appendChild(editButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.classList.add('delete');
+                deleteButton.onclick = () => deleteTemplate(name);
+                buttonContainer.appendChild(deleteButton);
+
+                templateList.appendChild(buttonContainer);
+            }
+        }
+
+        function loadTemplates() {
+            updateTemplateButtons();
+        }
+
+        // Initial load
+        loadTemplates();
+        document.getElementById('emailBody').addEventListener('input', updatePlaceholders);
+        document.getElementById('emailSubject').addEventListener('input', updatePlaceholders);
+    </script>
+</body>
+</html>
+
+
+
+
+
